@@ -32,15 +32,15 @@
  * POSSIBILITY OF SUCH DAMAGE.
  *---------------------------------------------------------------------------*/
 
-/* Variables */
-extern U32 os_time;
+#ifndef RT_TIME_H
+#define RT_TIME_H
 
-/* Functions */
-extern U32  rt_time_get (void);
-extern void rt_dly_wait (U16 delay_time);
-extern void rt_itv_set  (U16 interval_time);
-extern void rt_itv_wait (void);
+extern uint32_t os_time;
 
-/*----------------------------------------------------------------------------
- * end of file
- *---------------------------------------------------------------------------*/
+extern uint32_t rt_time_get(void);
+extern void rt_dly_wait(uint16_t delay_time);
+extern void rt_itv_set(uint16_t interval_time);
+extern void rt_itv_wait(void);
+
+#endif // RT_TIME_H
+

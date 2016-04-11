@@ -36,145 +36,136 @@
 #include "RTX_Config.h"
 #include "rt_HAL_CM.h"
 
-
-/*----------------------------------------------------------------------------
- *      Global Variables
- *---------------------------------------------------------------------------*/
-
 #ifdef DBG_MSG
 BIT dbg_msg;
 #endif
 
-/*----------------------------------------------------------------------------
- *      Functions
- *---------------------------------------------------------------------------*/
+// Prepare TCB and saved context for a first time start of a task
+void rt_init_stack(P_TCB p_TCB, FUNCP task_body)
+{
+    uint32_t *stk, i, size;
 
-
-/*--------------------------- rt_init_stack ---------------------------------*/
-
-void rt_init_stack (P_TCB p_TCB, FUNCP task_body) {
-  /* Prepare TCB and saved context for a first time start of a task. */
-  U32 *stk,i,size;
-
-  /* Prepare a complete interrupt frame for first task start */
-  size = p_TCB->priv_stack >> 2;
-  if (size == 0U) {
-    size = (U16)os_stackinfo >> 2;
-  }
-
-  /* Write to the top of stack. */
-  stk = &p_TCB->stack[size];
-
-  /* Auto correct to 8-byte ARM stack alignment. */
-  if ((U32)stk & 0x04U) {
-    stk--;
-  }
-
-  stk -= 16;
-
-  /* Default xPSR and initial PC */
-  stk[15] = INITIAL_xPSR;
-  stk[14] = (U32)task_body;
-
-  /* Clear R4-R11,R0-R3,R12,LR registers. */
-  for (i = 0U; i < 14U; i++) {
-    stk[i] = 0U;
-  }
-
-  /* Assign a void pointer to R0. */
-  stk[8] = (U32)p_TCB->msg;
-
-  /* Initial Task stack pointer. */
-  p_TCB->tsk_stack = (U32)stk;
-
-  /* Task entry point. */
-  p_TCB->ptask = task_body;
-
-  /* Initialize stack with magic pattern. */
-  if (os_stackinfo & 0x10000000U) {
-    if (size > (16U+1U)) {
-      for (i = ((size - 16U)/2U) - 1U; i; i--) {
-        stk -= 2U;
-        stk[1] = MAGIC_PATTERN;
-        stk[0] = MAGIC_PATTERN;
-      }
-      if (--stk > p_TCB->stack) {
-        *stk = MAGIC_PATTERN;
-      }
+    // Prepare a complete interrupt frame for first task start
+    size = p_TCB->priv_stack >> 2;
+    if (!size)
+    {
+        size = (uint16_t)os_stackinfo >> 2;
     }
-  }
 
-  /* Set a magic word for checking of stack overflow. */
-  p_TCB->stack[0] = MAGIC_WORD;
+    // Write to the top of stack
+    stk = &p_TCB->stack[size];
+
+    // Auto correct to 8-byte ARM stack alignment
+    if ((uint32_t)stk & 0x04U)
+    {
+        stk--;
+    }
+
+    stk -= 16;
+
+    // Default xPSR and initial PC
+    stk[15] = INITIAL_xPSR;
+    stk[14] = (uint32_t)task_body;
+
+    // Clear R4-R11, R0-R3, R12, LR registers
+    for (i = 0U; i < 14U; i++)
+    {
+        stk[i] = 0U;
+    }
+
+    // Assign a void pointer to R0
+    stk[8] = (uint32_t)p_TCB->msg;
+
+    // Initial Task stack pointer
+    p_TCB->tsk_stack = (uint32_t)stk;
+
+    // Task entry point
+    p_TCB->ptask = task_body;
+
+    // Initialize stack with magic pattern
+    if (os_stackinfo & 0x10000000U)
+    {
+        if (size > (16U + 1U))
+        {
+            for (i = ((size - 16U) / 2U) - 1U; i; i--)
+            {
+                stk -= 2U;
+                stk[1] = MAGIC_PATTERN;
+                stk[0] = MAGIC_PATTERN;
+            }
+
+            if (--stk > p_TCB->stack)
+            {
+                *stk = MAGIC_PATTERN;
+            }
+        }
+    }
+
+    // Set a magic word for checking of stack overflow
+    p_TCB->stack[0] = MAGIC_WORD;
 }
 
-
-/*--------------------------- rt_ret_val ----------------------------------*/
-
-static __inline U32 *rt_ret_regs (P_TCB p_TCB) {
-  /* Get pointer to task return value registers (R0..R3) in Stack */
-#if defined(__TARGET_FPU_VFP)
-  if (p_TCB->stack_frame) {
-    /* Extended Stack Frame: R4-R11,S16-S31,R0-R3,R12,LR,PC,xPSR,S0-S15,FPSCR */
-    return (U32 *)(p_TCB->tsk_stack + (8U*4U) + (16U*4U));
-  } else {
-    /* Basic Stack Frame: R4-R11,R0-R3,R12,LR,PC,xPSR */
-    return (U32 *)(p_TCB->tsk_stack + (8U*4U));
-  }
-#else
-  /* Stack Frame: R4-R11,R0-R3,R12,LR,PC,xPSR */
-  return (U32 *)(p_TCB->tsk_stack + (8U*4U));
-#endif
+// Get pointer to task return value registers (R0..R3) in Stack
+static __inline uint32_t* rt_ret_regs(P_TCB p_TCB)
+{
+#ifdef __TARGET_FPU_VFP
+    if (p_TCB->stack_frame)
+    {
+        // Extended Stack Frame: R4-R11, S16-S31, R0-R3, R12, LR, PC, xPSR, S0-S15, FPSCR
+        return (uint32_t*)(p_TCB->tsk_stack + (8U * 4U) + (16U * 4U));
+    }
+    else
+    {
+        // Basic Stack Frame: R4-R11, R0-R3, R12, LR, PC, xPSR
+        return (uint32_t*)(p_TCB->tsk_stack + (8U * 4U));
+    }
+#else // __TARGET_FPU_VFP
+    // Stack Frame: R4-R11, R0-R3, R12, LR, PC, xPSR
+    return (uint32_t*)(p_TCB->tsk_stack + (8U * 4U));
+#endif // __TARGET_FPU_VFP
 }
 
-void rt_ret_val (P_TCB p_TCB, U32 v0) {
-  U32 *ret;
+void rt_ret_val(P_TCB p_TCB, uint32_t v0)
+{
+    uint32_t* ret;
 
-  ret = rt_ret_regs(p_TCB);
-  ret[0] = v0;
+    ret = rt_ret_regs(p_TCB);
+    ret[0] = v0;
 }
 
-void rt_ret_val2(P_TCB p_TCB, U32 v0, U32 v1) {
-  U32 *ret;
+void rt_ret_val2(P_TCB p_TCB, uint32_t v0, uint32_t v1)
+{
+    uint32_t* ret;
 
-  ret = rt_ret_regs(p_TCB);
-  ret[0] = v0;
-  ret[1] = v1;
+    ret = rt_ret_regs(p_TCB);
+    ret[0] = v0;
+    ret[1] = v1;
 }
-
-
-/*--------------------------- dbg_init --------------------------------------*/
 
 #ifdef DBG_MSG
-void dbg_init (void) {
-  if (((DEMCR & DEMCR_TRCENA) != 0U)     && 
-      ((ITM_CONTROL & ITM_ITMENA) != 0U) &&
-      ((ITM_ENABLE & (1UL << 31)) != 0U)) {
-    dbg_msg = __TRUE;
-  }
+void dbg_init(void)
+{
+    if (((DEMCR & DEMCR_TRCENA) != 0U)
+        && ((ITM_CONTROL & ITM_ITMENA) != 0U)
+        && ((ITM_ENABLE & (1UL << 31)) != 0U))
+    {
+        dbg_msg = __TRUE;
+    }
 }
-#endif
 
-/*--------------------------- dbg_task_notify -------------------------------*/
+void dbg_task_notify(P_TCB p_tcb, bool create)
+{
+    while (!ITM_PORT31_U32);
+    ITM_PORT31_U32 = (uint32_t)p_tcb->ptask;
 
-#ifdef DBG_MSG
-void dbg_task_notify (P_TCB p_tcb, BOOL create) {
-  while (ITM_PORT31_U32 == 0U);
-  ITM_PORT31_U32 = (U32)p_tcb->ptask;
-  while (ITM_PORT31_U32 == 0U);
-  ITM_PORT31_U16 = (U16)((create << 8) | p_tcb->task_id);
+    while (!ITM_PORT31_U32);
+    ITM_PORT31_U16 = (uint16_t)((create << 8) | p_tcb->task_id);
 }
-#endif
 
-/*--------------------------- dbg_task_switch -------------------------------*/
-
-#ifdef DBG_MSG
-void dbg_task_switch (U32 task_id) {
-  while (ITM_PORT31_U32 == 0U);
-  ITM_PORT31_U8 = (U8)task_id;
+void dbg_task_switch(uint32_t task_id)
+{
+    while (!ITM_PORT31_U32);
+    ITM_PORT31_U8 = (uint8_t)task_id;
 }
-#endif
+#endif // DBG_MSG
 
-/*----------------------------------------------------------------------------
- * end of file
- *---------------------------------------------------------------------------*/

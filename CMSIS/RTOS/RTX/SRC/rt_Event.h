@@ -32,14 +32,15 @@
  * POSSIBILITY OF SUCH DAMAGE.
  *---------------------------------------------------------------------------*/
 
-/* Functions */
-extern OS_RESULT rt_evt_wait (U16 wait_flags,  U16 timeout, BOOL and_wait);
-extern void      rt_evt_set  (U16 event_flags, OS_TID task_id);
-extern void      rt_evt_clr  (U16 clear_flags, OS_TID task_id);
-extern void      isr_evt_set (U16 event_flags, OS_TID task_id);
-extern U16       rt_evt_get  (void);
-extern void      rt_evt_psh  (P_TCB p_CB, U16 set_flags);
+#ifndef RT_EVENT_H
+#define RT_EVENT_H
 
-/*----------------------------------------------------------------------------
- * end of file
- *---------------------------------------------------------------------------*/
+OS_RESULT rt_evt_wait(uint16_t wait_flags, uint16_t timeout, bool and_wait);
+void rt_evt_set(uint16_t event_flags, OS_TID task_id);
+void rt_evt_clr(uint16_t clear_flags, OS_TID task_id);
+void isr_evt_set(uint16_t event_flags, OS_TID task_id);
+uint16_t rt_evt_get(void);
+void rt_evt_psh(P_TCB p_CB, uint16_t set_flags);
+
+#endif // RT_EVENT_H
+
